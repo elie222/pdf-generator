@@ -1,0 +1,5 @@
+{
+  "version": 2,
+  "name": "pdf-generator",
+  "builds": [{ "src": "*.js", "use": "@now/node" }]
+}
