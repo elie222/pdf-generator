@@ -3,14 +3,48 @@ const PdfPrinter = require('pdfmake')
 const pdfMakeFonts = require('pdfmake/build/vfs_fonts.js').pdfMake.vfs
 const { Regular, Medium, Bold } = require('./david')
 
+/**
+ * tables - an array of objects with the following fields:
+ *   - title: string - the section header
+ *   - table: string[][] - 2 dimenstional array of table data
+ * content - `pdfmake` content. if this field is provided it is used instead of `tables`
+ * pageOrientation - potrait (default) or landscape
+ * pageSize - default A4
+ */
 module.exports = (req, res) => {
   const {
-    query: { tableData = [], pageOrientation = 'portrait', pageSize = 'A4' },
+    query: { tables = [], pageOrientation = 'portrait', pageSize = 'A4', content },
   } = parse(req.url, true)
 
-  const table = JSON.parse(tableData)
+  let parsedTables
 
-  // console.log(table)
+  try {
+    parsedTables = JSON.parse(tables)
+  } catch (error) {
+    console.error(error)
+    return res.end({
+      status: 422,
+      message: 'table must be JSON',
+      error,
+    })
+  }
+
+  // example
+  // parsedTables = [
+  //   {
+  //     title: 'Report',
+  //     table: [['Column 1', 'Column 2', 'Column 3'], ['Cell 1', 'Cell 2', 'Cell 3']],
+  //   },
+  //   {
+  //     title: 'Table 2',
+  //     table: [
+  //       ['Column 1', 'Column 2', 'Column 3'],
+  //       ['Cell 1', 'Cell 2', 'Cell 3'],
+  //       ['Cell 1', 'Cell 2', 'Cell 3'],
+  //       ['Cell 1', 'Cell 2', 'Cell 3'],
+  //     ],
+  //   },
+  // ]
 
   const printer = new PdfPrinter({
     Roboto: {
@@ -27,17 +61,17 @@ module.exports = (req, res) => {
   })
 
   const docDefinition = {
-    content: [
-      { text: 'Report', style: 'header' },
-      {
-        style: 'table',
-        // layout: 'lightHorizontalLines',
-        table: {
-          // example:
-          // body: [['Column 1', 'Column 2', 'Column 3'], ['Cell 1', 'Cell 2', 'Cell 3']],
-          body: table,
+    content: content || [
+      ...parsedTables.map(({ title, table }) => [
+        { text: title, style: 'header' },
+        {
+          style: 'table',
+          // layout: 'lightHorizontalLines',
+          table: {
+            body: table,
+          },
         },
-      },
+      ]),
     ],
     styles: {
       header: {
@@ -67,9 +101,10 @@ module.exports = (req, res) => {
     pageOrientation,
   }
 
+  const pdfDoc = printer.createPdfKitDocument(docDefinition)
+
   res.setHeader('Access-Control-Allow-Origin', '*')
 
-  const pdfDoc = printer.createPdfKitDocument(docDefinition)
   pdfDoc.pipe(res)
   pdfDoc.end()
 }
